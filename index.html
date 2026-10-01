@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🔴 Тапай по красной кнопке!</title>
+<style>
+    * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent; }
+    body {
+        font-family: 'Segoe UI', Arial, sans-serif;
+        background: linear-gradient(135deg, #1a1a2e, #16213e);
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        color: #fff;
+        overflow: hidden;
+        touch-action: manipulation;
+    }
+    h1 {
+        font-size: clamp(20px, 5vw, 36px);
+        margin-bottom: 10px;
+        text-shadow: 0 2px 10px rgba(0,0,0,0.5);
+    }
+    .stats {
+        display: flex;
+        gap: 30px;
+        margin-bottom: 20px;
+        font-size: clamp(16px, 4vw, 24px);
+    }
+    .stats b { color: #ff5252; }
+    #timer { color: #ffd740; font-weight: bold; }
+    #btn {
+        width: min(70vw, 280px);
+        height: min(70vw, 280px);
+        border-radius: 50%;
+        border: none;
+        background: radial-gradient(circle at 35% 30%, #ff6b6b, #d32f2f 60%, #8e0000);
+        box-shadow: 0 12px 0 #7b0000, 0 18px 30px rgba(0,0,0,0.5);
+        font-size: clamp(40px, 12vw, 80px);
+        cursor: pointer;
+        transition: transform 0.06s, box-shadow 0.06s;
+        position: relative;
+    }
+    #btn:active, #btn.pressed {
+        transform: translateY(10px);
+        box-shadow: 0 2px 0 #7b0000, 0 6px 12px rgba(0,0,0,0.5);
+    }
+    #btn.running { animation: pulse 0.8s infinite; }
+    @keyframes pulse {
+        0%, 100% { filter: brightness(1); }
+        50% { filter: brightness(1.15); }
+    }
+    #startBtn {
+        margin-top: 30px;
+        padding: 14px 40px;
+        font-size: 20px;
+        font-weight: bold;
+        border: none;
+        border-radius: 30px;
+        background: linear-gradient(90deg, #ffd740, #ffab00);
+        color: #333;
+        cursor: pointer;
+        box-shadow: 0 4px 0 #b8860b;
+        transition: transform 0.1s;
+    }
+    #startBtn:active { transform: translateY(3px); box-shadow: 0 1px 0 #b8860b; }
+    #record { margin-top: 15px; opacity: 0.8; font-size: 15px; }
+    .float {
+        position: absolute;
+        pointer-events: none;
+        font-size: 24px;
+        font-weight: bold;
+        color: #ffd740;
+        animation: floatUp 0.7s ease-out forwards;
+    }
+    @keyframes floatUp {
+        from { opacity: 1; transform: translateY(0); }
+        to { opacity: 0; transform: translateY(-60px); }
+    }
+    .shake { animation: shake 0.3s; }
+    @keyframes shake {
+        0%,100% { transform: translateX(0); }
+        25% { transform: translateX(-5px); }
+        75% { transform: translateX(5px); }
+    }
+    #gameOver {
+        display: none;
+        position: fixed;
+        inset: 0;
+        background: rgba(0,0,0,0.8);
+        align-items: center;
+        justify-content: center;
+        z-index: 10;
+    }
+    #gameOver .card {
+        background: #16213e;
+        border: 2px solid #ff5252;
+        border-radius: 20px;
+        padding: 40px;
+        text-align: center;
+        max-width: 90vw;
+    }
+    #gameOver h2 { color: #ff5252; margin-bottom: 15px; font-size: 32px; }
+    #gameOver p { font-size: 20px; margin-bottom: 20px; }
+    #newRecord { color: #ffd740; font-weight: bold; display: none; margin-bottom: 15px; }
+</style>
+</head>
+<body>
+
+<h1>🔴 Красная кнопка</h1>
+
+<div class="stats">
+    <div>Тапов: <b id="count">0</b></div>
+    <div>Время: <span id="timer">10.0</span>с</div>
+</div>
+
+<button id="btn" title="Тапай!">👆</button>
+
+<button id="startBtn">▶ Старт (10 секунд)</button>
+
+<div id="record">🏆 Рекорд: <span id="recordVal">0</span></div>
+
+<div id="gameOver">
+    <div class="card">
+        <h2>⏰ Время вышло!</h2>
+        <p>Ты сделал <b id="finalCount" style="color:#ff5252">0</b> тапов</p>
+        <div id="newRecord">🎉 Новый рекорд!</div>
+        <button id="restartBtn">🔄 Ещё раз</button>
+    </div>
+</div>
+
+<script>
+const btn = document.getElementById('btn');
+const startBtn = document.getElementById('startBtn');
+const countEl = document.getElementById('count');
+const timerEl = document.getElementById('timer');
+const recordEl = document.getElementById('recordVal');
+const gameOver = document.getElementById('gameOver');
+const finalCount = document.getElementById('finalCount');
+const newRecord = document.getElementById('newRecord');
+const restartBtn = document.getElementById('restartBtn');
+
+let count = 0;
+let timeLeft = 10;
+let running = false;
+let interval = null;
+let record = parseInt(localStorage.getItem('btnRecord') || '0');
+recordEl.textContent = record;
+
+function start() {
+    count = 0;
+    timeLeft = 10;
+    running = true;
+    countEl.textContent = 0;
+    timerEl.textContent = '10.0';
+    btn.classList.add('running');
+    gameOver.style.display = 'none';
+    startBtn.style.display = 'none';
+
+    interval = setInterval(() => {
+        timeLeft -= 0.1;
+        if (timeLeft <= 0) {
+            timeLeft = 0;
+            end();
+        }
+        timerEl.textContent = timeLeft.toFixed(1);
+    }, 100);
+}
+
+function end() {
+    running = false;
+    clearInterval(interval);
+    btn.classList.remove('running');
+    document.body.classList.add('shake');
+    setTimeout(() => document.body.classList.remove('shake'), 300);
+
+    finalCount.textContent = count;
+    if (count > record) {
+        record = count;
+        localStorage.setItem('btnRecord', record);
+        recordEl.textContent = record;
+        newRecord.style.display = 'block';
+    } else {
+        newRecord.style.display = 'none';
+    }
+    gameOver.style.display = 'flex';
+    startBtn.style.display = 'inline-block';
+    startBtn.textContent = '▶ Играть снова';
+}
+
+btn.addEventListener('pointerdown', (e) => {
+    if (!running) return;
+    count++;
+    countEl.textContent = count;
+
+    // Плюсик вылетает из кнопки
+    const f = document.createElement('span');
+    f.className = 'float';
+    f.textContent = '+1';
+    const rect = btn.getBoundingClientRect();
+    f.style.left = (rect.left + Math.random() * rect.width * 0.8) + 'px';
+    f.style.top = (rect.top - 10) + 'px';
+    document.body.appendChild(f);
+    setTimeout(() => f.remove(), 700);
+
+    // Вибрация на телефоне
+    if (navigator.vibrate) navigator.vibrate(15);
+});
+
+startBtn.addEventListener('click', start);
+restartBtn.addEventListener('click', start);
+</script>
+
+</body>
+</html>
